@@ -7,5 +7,6 @@ namespace TodoApp.API.DTOs
         public int? CategoriaId { get; set; }
         public int? EstadoId { get; set; }
         public DateTime? FechaVencimiento { get; set; }
+        public int? UsuarioId { get; set; }
     }
 }

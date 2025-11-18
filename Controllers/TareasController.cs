@@ -10,8 +10,7 @@ namespace TodoApp.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]  // Descomenta si quieres que solo usuarios autenticados accedan
-    
+    [Authorize]
     public class TareasController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -55,26 +54,30 @@ namespace TodoApp.API.Controllers
             if (tarea == null) return NotFound();
 
             var userId = GetUserId();
-            var userRole = GetUserRole();
 
-            if (tarea.UsuarioId != userId && userRole != "Admin")
-                return Forbid();
+            if (tarea.UsuarioId != userId)
+                return Forbid(); 
 
             return Ok(tarea);
         }
 
+
         // POST: api/tareas
         [HttpPost]
-        public async Task<ActionResult<Tarea>> CrearTarea(CreateTareaDto dto)
+        public async Task<ActionResult<Tarea>> CreateTask(CreateTareaDto dto)
         {
             var userId = GetUserId();
+            var role = GetUserRole();
 
-            // Verificar que el usuario existe en la DB (evitar FK violation)
-            var usuarioExiste = await _context.Usuarios.AnyAsync(u => u.Id == userId);
+            int usuarioAsignado = (role == "Supervisor" && dto.UsuarioId.HasValue)
+                ? dto.UsuarioId.Value
+                : userId;
+
+            // Validar usuario existente
+            var usuarioExiste = await _context.Usuarios.AnyAsync(u => u.Id == usuarioAsignado);
             if (!usuarioExiste)
-                return BadRequest("El usuario autenticado no existe en la base de datos.");
+                return BadRequest("El usuario asignado no existe.");
 
-            // Verificar que Categoria y Estado existen para evitar error FK
             var categoriaExiste = await _context.Categorias.AnyAsync(c => c.Id == dto.CategoriaId);
             if (!categoriaExiste)
                 return BadRequest("La categoría especificada no existe.");
@@ -89,7 +92,7 @@ namespace TodoApp.API.Controllers
                 Descripcion = dto.Descripcion,
                 CategoriaId = dto.CategoriaId,
                 EstadoId = dto.EstadoId,
-                UsuarioId = userId,
+                UsuarioId = usuarioAsignado,
                 FechaCreacion = DateTime.UtcNow,
                 FechaVencimiento = dto.FechaVencimiento
             };
@@ -100,6 +103,8 @@ namespace TodoApp.API.Controllers
             return CreatedAtAction(nameof(GetTarea), new { id = tarea.Id }, tarea);
         }
 
+
+
         // PUT: api/tareas/5
         [HttpPut("{id}")]
         public async Task<ActionResult<Tarea>> ActualizarTarea(int id, UpdateTareaDto dto)
@@ -108,9 +113,8 @@ namespace TodoApp.API.Controllers
             if (tarea == null) return NotFound();
 
             var userId = GetUserId();
-            var userRole = GetUserRole();
 
-            if (tarea.UsuarioId != userId && userRole != "Admin")
+            if (tarea.UsuarioId != userId)
                 return Forbid();
 
             // Validar existencia de Categoria y Estado nuevos
@@ -131,7 +135,6 @@ namespace TodoApp.API.Controllers
             _context.Tareas.Update(tarea);
             await _context.SaveChangesAsync();
 
-            // 🔥 Devolvemos la tarea actualizada
             return Ok(tarea);
         }
 
@@ -144,9 +147,8 @@ namespace TodoApp.API.Controllers
             if (tarea == null) return NotFound();
 
             var userId = GetUserId();
-            var userRole = GetUserRole();
 
-            if (tarea.UsuarioId != userId && userRole != "Admin")
+            if (tarea.UsuarioId != userId)
                 return Forbid();
 
             _context.Tareas.Remove(tarea);
@@ -155,7 +157,8 @@ namespace TodoApp.API.Controllers
             return NoContent();
         }
 
-        // Métodos auxiliares para obtener info del usuario logueado
+
+        // Métodos auxiliares
         private int GetUserId()
         {
             var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
