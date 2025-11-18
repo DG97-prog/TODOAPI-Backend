@@ -33,7 +33,7 @@ namespace TodoApp.API.Services
                 NombreUsuario = dto.NombreUsuario,
                 Correo = dto.Correo,
                 ContrasenaHash = BCrypt.Net.BCrypt.HashPassword(dto.Contrasena),
-                Rol = "User", // por defecto
+                Rol = dto.Rol,
                 FechaCreacion = DateTime.UtcNow
             };
 
