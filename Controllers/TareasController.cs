@@ -102,7 +102,7 @@ namespace TodoApp.API.Controllers
 
         // PUT: api/tareas/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> ActualizarTarea(int id, UpdateTareaDto dto)
+        public async Task<ActionResult<Tarea>> ActualizarTarea(int id, UpdateTareaDto dto)
         {
             var tarea = await _context.Tareas.FindAsync(id);
             if (tarea == null) return NotFound();
@@ -131,8 +131,10 @@ namespace TodoApp.API.Controllers
             _context.Tareas.Update(tarea);
             await _context.SaveChangesAsync();
 
-            return NoContent();
+            // 🔥 Devolvemos la tarea actualizada
+            return Ok(tarea);
         }
+
 
         // DELETE: api/tareas/5
         [HttpDelete("{id}")]

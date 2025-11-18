@@ -45,9 +45,9 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        //options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
-        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve;
-        options.JsonSerializerOptions.WriteIndented = true;
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        //options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve;
+        //options.JsonSerializerOptions.WriteIndented = true;
     });
 
 // Swagger con soporte para JWT
