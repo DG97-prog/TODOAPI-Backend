@@ -48,9 +48,9 @@ namespace TodoApp.API.Controllers
             return Ok(new { token });
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Supervisor")]
         [HttpGet]
-        public async Task<IActionResult> GetUsuarios()
+        public async Task<IActionResult> GetUsers()
         {
             var usuarios = await _context.Usuarios
                 .Select(u => new
@@ -68,7 +68,7 @@ namespace TodoApp.API.Controllers
 
         [Authorize(Roles = "Admin")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> ActualizarUsuario(int id, [FromBody] UpdateUsuarioDto dto)
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUsuarioDto dto)
         {
             var usuario = await _context.Usuarios.FindAsync(id);
             if (usuario == null)
