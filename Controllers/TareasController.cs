@@ -5,20 +5,23 @@ using System.Security.Claims;
 using TodoApp.API.Data;
 using TodoApp.API.Models;
 using TodoApp.API.DTOs;
+using TodoApp.API.Interfaces;
+using ClosedXML.Excel;
 
 namespace TodoApp.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]  // Descomenta si quieres que solo usuarios autenticados accedan
-    
+    [Authorize]
     public class TareasController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IEmailService _emailService;
 
-        public TareasController(ApplicationDbContext context)
+        public TareasController(ApplicationDbContext context, IEmailService emailService)
         {
             _context = context;
+            _emailService = emailService;
         }
 
         [HttpGet("prueba")]
@@ -55,26 +58,30 @@ namespace TodoApp.API.Controllers
             if (tarea == null) return NotFound();
 
             var userId = GetUserId();
-            var userRole = GetUserRole();
 
-            if (tarea.UsuarioId != userId && userRole != "Admin")
-                return Forbid();
+            if (tarea.UsuarioId != userId)
+                return Forbid(); 
 
             return Ok(tarea);
         }
 
         // POST: api/tareas
         [HttpPost]
-        public async Task<ActionResult<Tarea>> CrearTarea(CreateTareaDto dto)
+        public async Task<ActionResult<Tarea>> CreateTask(CreateTareaDto dto)
         {
             var userId = GetUserId();
+            var role = GetUserRole();
 
-            // Verificar que el usuario existe en la DB (evitar FK violation)
-            var usuarioExiste = await _context.Usuarios.AnyAsync(u => u.Id == userId);
-            if (!usuarioExiste)
-                return BadRequest("El usuario autenticado no existe en la base de datos.");
+            int usuarioAsignadoId = (role == "Supervisor" && dto.UsuarioId.HasValue)
+                ? dto.UsuarioId.Value
+                : userId;
 
-            // Verificar que Categoria y Estado existen para evitar error FK
+            var usuarioAsignado = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Id == usuarioAsignadoId);
+
+            if (usuarioAsignado == null)
+                return BadRequest("El usuario asignado no existe.");
+
             var categoriaExiste = await _context.Categorias.AnyAsync(c => c.Id == dto.CategoriaId);
             if (!categoriaExiste)
                 return BadRequest("La categoría especificada no existe.");
@@ -89,7 +96,7 @@ namespace TodoApp.API.Controllers
                 Descripcion = dto.Descripcion,
                 CategoriaId = dto.CategoriaId,
                 EstadoId = dto.EstadoId,
-                UsuarioId = userId,
+                UsuarioId = usuarioAsignadoId,
                 FechaCreacion = DateTime.UtcNow,
                 FechaVencimiento = dto.FechaVencimiento
             };
@@ -97,8 +104,47 @@ namespace TodoApp.API.Controllers
             _context.Tareas.Add(tarea);
             await _context.SaveChangesAsync();
 
+            try
+            {
+                var creador = await _context.Usuarios
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+
+                var esMismaPersona = userId == usuarioAsignadoId;
+
+                var subject = esMismaPersona
+                    ? "Nueva tarea asignada a ti"
+                    : $"Te asignaron una nueva tarea (por {creador?.NombreUsuario})";
+
+                var body = esMismaPersona
+                    ? $"Hola {usuarioAsignado.NombreUsuario},\n\n" +
+                      $"Se ha creado una nueva tarea para ti:\n\n" +
+                      $"- Título: {tarea.Titulo}\n" +
+                      $"- Descripción: {tarea.Descripcion}\n" +
+                      $"- Fecha vencimiento: {tarea.FechaVencimiento:yyyy-MM-dd HH:mm}\n\n" +
+                      "Ingresa a la aplicación para más detalles."
+                    : $"Hola {usuarioAsignado.NombreUsuario},\n\n" +
+                      $"El usuario {creador?.NombreUsuario} te ha asignado una nueva tarea:\n\n" +
+                      $"- Título: {tarea.Titulo}\n" +
+                      $"- Descripción: {tarea.Descripcion}\n" +
+                      $"- Fecha vencimiento: {tarea.FechaVencimiento:yyyy-MM-dd HH:mm}\n\n" +
+                      "Ingresa a la aplicación para más detalles.";
+
+                await _emailService.SendEmailAsync(
+                    usuarioAsignado.Correo,
+                    subject,
+                    body
+                );
+            }
+            catch (Exception ex)
+            {
+                // No rompemos la creación de tarea si falla el correo, solo log
+                Console.WriteLine($"Error enviando correo: {ex.Message}");
+            }
+
             return CreatedAtAction(nameof(GetTarea), new { id = tarea.Id }, tarea);
         }
+
+
 
         // PUT: api/tareas/5
         [HttpPut("{id}")]
@@ -108,9 +154,8 @@ namespace TodoApp.API.Controllers
             if (tarea == null) return NotFound();
 
             var userId = GetUserId();
-            var userRole = GetUserRole();
 
-            if (tarea.UsuarioId != userId && userRole != "Admin")
+            if (tarea.UsuarioId != userId)
                 return Forbid();
 
             // Validar existencia de Categoria y Estado nuevos
@@ -131,7 +176,6 @@ namespace TodoApp.API.Controllers
             _context.Tareas.Update(tarea);
             await _context.SaveChangesAsync();
 
-            // 🔥 Devolvemos la tarea actualizada
             return Ok(tarea);
         }
 
@@ -144,9 +188,8 @@ namespace TodoApp.API.Controllers
             if (tarea == null) return NotFound();
 
             var userId = GetUserId();
-            var userRole = GetUserRole();
 
-            if (tarea.UsuarioId != userId && userRole != "Admin")
+            if (tarea.UsuarioId != userId)
                 return Forbid();
 
             _context.Tareas.Remove(tarea);
@@ -155,7 +198,56 @@ namespace TodoApp.API.Controllers
             return NoContent();
         }
 
-        // Métodos auxiliares para obtener info del usuario logueado
+        [HttpGet("report")]
+        [Authorize(Roles = "Supervisor")]
+        public async Task<IActionResult> DownloadReport()
+        {
+            var tareas = await _context.Tareas
+                .Include(t => t.Categoria)
+                .Include(t => t.Estado)
+                .Include(t => t.Usuario)
+                .ToListAsync();
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.Worksheets.Add("Reporte de Tareas");
+
+            // Encabezados
+            ws.Cell(1, 1).Value = "Título";
+            ws.Cell(1, 2).Value = "Descripción";
+            ws.Cell(1, 3).Value = "Categoría";
+            ws.Cell(1, 4).Value = "Estado";
+            ws.Cell(1, 5).Value = "Usuario Asignado";
+            ws.Cell(1, 6).Value = "Fecha Creación";
+            ws.Cell(1, 7).Value = "Fecha Vencimiento";
+
+            int row = 2;
+
+            foreach (var t in tareas)
+            {
+                ws.Cell(row, 1).Value = t.Titulo;
+                ws.Cell(row, 2).Value = t.Descripcion;
+                ws.Cell(row, 3).Value = t.Categoria?.Nombre;
+                ws.Cell(row, 4).Value = t.Estado?.NombreEstado;
+                ws.Cell(row, 5).Value = t.Usuario?.NombreUsuario;
+                ws.Cell(row, 6).Value = t.FechaCreacion.ToString("yyyy-MM-dd HH:mm");
+                ws.Cell(row, 7).Value = t.FechaVencimiento?.ToString("yyyy-MM-dd HH:mm"); 
+
+                row++;
+            }
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            var content = stream.ToArray();
+
+            var fileName = $"reporte_tareas_{DateTime.UtcNow:yyyyMMddHHmmss}.xlsx";
+
+            return File(content,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+        }
+
+
+        // Métodos auxiliares
         private int GetUserId()
         {
             var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
