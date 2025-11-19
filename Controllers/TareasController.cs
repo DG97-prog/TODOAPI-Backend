@@ -101,8 +101,18 @@ namespace TodoApp.API.Controllers
                 FechaVencimiento = dto.FechaVencimiento
             };
 
-            _context.Tareas.Add(tarea);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.Tareas.Add(tarea);
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                // Aquí puedes loguear en consola o en logs
+                Console.WriteLine("DB ERROR: " + (ex.InnerException?.Message ?? ex.Message));
+                throw;
+            }
+
 
             try
             {
