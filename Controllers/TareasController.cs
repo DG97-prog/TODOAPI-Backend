@@ -5,6 +5,7 @@ using System.Security.Claims;
 using TodoApp.API.Data;
 using TodoApp.API.Models;
 using TodoApp.API.DTOs;
+using TodoApp.API.Interfaces;
 
 namespace TodoApp.API.Controllers
 {
@@ -14,10 +15,12 @@ namespace TodoApp.API.Controllers
     public class TareasController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IEmailService _emailService;
 
-        public TareasController(ApplicationDbContext context)
+        public TareasController(ApplicationDbContext context, IEmailService emailService)
         {
             _context = context;
+            _emailService = emailService;
         }
 
         [HttpGet("prueba")]
@@ -61,7 +64,6 @@ namespace TodoApp.API.Controllers
             return Ok(tarea);
         }
 
-
         // POST: api/tareas
         [HttpPost]
         public async Task<ActionResult<Tarea>> CreateTask(CreateTareaDto dto)
@@ -69,13 +71,14 @@ namespace TodoApp.API.Controllers
             var userId = GetUserId();
             var role = GetUserRole();
 
-            int usuarioAsignado = (role == "Supervisor" && dto.UsuarioId.HasValue)
+            int usuarioAsignadoId = (role == "Supervisor" && dto.UsuarioId.HasValue)
                 ? dto.UsuarioId.Value
                 : userId;
 
-            // Validar usuario existente
-            var usuarioExiste = await _context.Usuarios.AnyAsync(u => u.Id == usuarioAsignado);
-            if (!usuarioExiste)
+            var usuarioAsignado = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Id == usuarioAsignadoId);
+
+            if (usuarioAsignado == null)
                 return BadRequest("El usuario asignado no existe.");
 
             var categoriaExiste = await _context.Categorias.AnyAsync(c => c.Id == dto.CategoriaId);
@@ -92,13 +95,50 @@ namespace TodoApp.API.Controllers
                 Descripcion = dto.Descripcion,
                 CategoriaId = dto.CategoriaId,
                 EstadoId = dto.EstadoId,
-                UsuarioId = usuarioAsignado,
+                UsuarioId = usuarioAsignadoId,
                 FechaCreacion = DateTime.UtcNow,
                 FechaVencimiento = dto.FechaVencimiento
             };
 
             _context.Tareas.Add(tarea);
             await _context.SaveChangesAsync();
+
+            try
+            {
+                var creador = await _context.Usuarios
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+
+                var esMismaPersona = userId == usuarioAsignadoId;
+
+                var subject = esMismaPersona
+                    ? "Nueva tarea asignada a ti"
+                    : $"Te asignaron una nueva tarea (por {creador?.NombreUsuario})";
+
+                var body = esMismaPersona
+                    ? $"Hola {usuarioAsignado.NombreUsuario},\n\n" +
+                      $"Se ha creado una nueva tarea para ti:\n\n" +
+                      $"- Título: {tarea.Titulo}\n" +
+                      $"- Descripción: {tarea.Descripcion}\n" +
+                      $"- Fecha vencimiento: {tarea.FechaVencimiento:yyyy-MM-dd HH:mm}\n\n" +
+                      "Ingresa a la aplicación para más detalles."
+                    : $"Hola {usuarioAsignado.NombreUsuario},\n\n" +
+                      $"El usuario {creador?.NombreUsuario} te ha asignado una nueva tarea:\n\n" +
+                      $"- Título: {tarea.Titulo}\n" +
+                      $"- Descripción: {tarea.Descripcion}\n" +
+                      $"- Fecha vencimiento: {tarea.FechaVencimiento:yyyy-MM-dd HH:mm}\n\n" +
+                      "Ingresa a la aplicación para más detalles.";
+
+                await _emailService.SendEmailAsync(
+                    usuarioAsignado.Correo,
+                    subject,
+                    body
+                );
+            }
+            catch (Exception ex)
+            {
+                // No rompemos la creación de tarea si falla el correo, solo log
+                Console.WriteLine($"Error enviando correo: {ex.Message}");
+            }
 
             return CreatedAtAction(nameof(GetTarea), new { id = tarea.Id }, tarea);
         }
