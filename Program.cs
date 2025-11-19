@@ -95,7 +95,7 @@ builder.Services.AddCors(options =>
         policy =>
         {
             policy.WithOrigins("http://localhost:5173",
-                                     "http://example")
+                                     "https://todoapi-front-end.vercel.app")
                                       .AllowAnyMethod()
                                       .AllowAnyHeader()
                                       .AllowCredentials(); 
