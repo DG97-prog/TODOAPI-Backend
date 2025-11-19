@@ -6,6 +6,7 @@ using TodoApp.API.Data;
 using TodoApp.API.Models;
 using TodoApp.API.DTOs;
 using TodoApp.API.Interfaces;
+using ClosedXML.Excel;
 
 namespace TodoApp.API.Controllers
 {
@@ -195,6 +196,54 @@ namespace TodoApp.API.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        [HttpGet("report")]
+        [Authorize(Roles = "Supervisor")]
+        public async Task<IActionResult> DownloadReport()
+        {
+            var tareas = await _context.Tareas
+                .Include(t => t.Categoria)
+                .Include(t => t.Estado)
+                .Include(t => t.Usuario)
+                .ToListAsync();
+
+            using var workbook = new XLWorkbook();
+            var ws = workbook.Worksheets.Add("Reporte de Tareas");
+
+            // Encabezados
+            ws.Cell(1, 1).Value = "Título";
+            ws.Cell(1, 2).Value = "Descripción";
+            ws.Cell(1, 3).Value = "Categoría";
+            ws.Cell(1, 4).Value = "Estado";
+            ws.Cell(1, 5).Value = "Usuario Asignado";
+            ws.Cell(1, 6).Value = "Fecha Creación";
+            ws.Cell(1, 7).Value = "Fecha Vencimiento";
+
+            int row = 2;
+
+            foreach (var t in tareas)
+            {
+                ws.Cell(row, 1).Value = t.Titulo;
+                ws.Cell(row, 2).Value = t.Descripcion;
+                ws.Cell(row, 3).Value = t.Categoria?.Nombre;
+                ws.Cell(row, 4).Value = t.Estado?.NombreEstado;
+                ws.Cell(row, 5).Value = t.Usuario?.NombreUsuario;
+                ws.Cell(row, 6).Value = t.FechaCreacion.ToString("yyyy-MM-dd HH:mm");
+                ws.Cell(row, 7).Value = t.FechaVencimiento?.ToString("yyyy-MM-dd HH:mm"); 
+
+                row++;
+            }
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            var content = stream.ToArray();
+
+            var fileName = $"reporte_tareas_{DateTime.UtcNow:yyyyMMddHHmmss}.xlsx";
+
+            return File(content,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
         }
 
 
