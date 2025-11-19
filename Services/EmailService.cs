@@ -22,7 +22,7 @@ namespace TodoApp.API.Services
             var user = _config["Smtp:User"];
             var pass = _config["Smtp:Password"];
             var from = _config["Smtp:From"];
-            Console.WriteLine(host, user, pass);
+            Console.WriteLine(pass);
             using var client = new SmtpClient(host, port)
             {
                 EnableSsl = true,
