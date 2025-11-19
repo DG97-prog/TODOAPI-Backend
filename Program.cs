@@ -40,6 +40,7 @@ builder.Services.AddAuthentication(options =>
 
 // Registrar el servicio de autenticación personalizado
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Agregar controladores con configuración JSON personalizada
 builder.Services.AddControllers()
