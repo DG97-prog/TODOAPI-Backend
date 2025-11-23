@@ -1,55 +1,180 @@
-# TodoApp.API
+# Todo App – Backend
 
-API RESTful para la gestión de tareas con autenticación basada en JWT y almacenamiento en SQL Server, desarrollada con ASP.NET Core y Entity Framework Core.
+## Descripción General
 
----
+La aplicación **Todo App** es un gestor de tareas que permite crear, actualizar y cambiar el estado de las tareas a:
 
-## Descripción general
+- Pendiente  
+- En Progreso  
+- Completado  
 
-Este proyecto es una API que permite gestionar una lista de tareas (Todo App). Los usuarios pueden registrarse, autenticarse mediante JWT (JSON Web Tokens) y realizar operaciones CRUD (Crear, Leer, Actualizar, Eliminar) sobre tareas asociadas a su cuenta. 
+Al asignar una tarea, el sistema envía automáticamente una **notificación por correo** al usuario.  
+Los usuarios con rol **Supervisor** pueden generar **informes en Excel** con información detallada de las tareas.
 
-La API implementa seguridad mediante autenticación JWT y validación de tokens para proteger los endpoints, garantizando que sólo usuarios autenticados puedan acceder y manipular sus tareas.
-
----
-
-## Tecnologías y herramientas usadas
-
-- **.NET 7** y **ASP.NET Core Web API**
-- **Entity Framework Core** con SQL Server para la persistencia de datos
-- **JWT (JSON Web Tokens)** para autenticación y autorización
-- **Swagger / OpenAPI** para documentación y pruebas de la API
-- **Visual Studio Code** como editor de código
-- **Git y GitHub** para control de versiones y repositorio remoto
+La aplicación también incluye un módulo de **gestión de usuarios**, donde el Administrador puede crear, actualizar y eliminar usuarios con acceso al sistema.
 
 ---
 
-## Arquitectura del proyecto
+## Características Principales
 
-El proyecto sigue una estructura limpia y organizada, dividiendo responsabilidades en capas y componentes:
-
-- **Data (DataContext y Entidades)**: Clases que representan el modelo de datos y la configuración de la base de datos usando Entity Framework Core.
-- **Interfaces**: Definición de contratos para los servicios (por ejemplo, `IAuthService`) que facilitan la inyección de dependencias y la abstracción.
-- **Servicios**: Implementaciones de la lógica de negocio, como autenticación, creación y manejo de tareas.
-- **Controladores (Controllers)**: Endpoints HTTP que exponen las funcionalidades a través de rutas RESTful.
-- **Configuración de Seguridad**: Implementación de autenticación y autorización usando JWT.
-- **Swagger**: Herramienta para documentar y probar fácilmente la API.
+- ✔️ Creación, actualización y eliminación de tareas  
+- ✔️ Notificación automática al asignar o actualizar tareas  
+- ✔️ Actualización de estados: Pendiente, En Progreso y Completada  
+- ✔️ Generación de informes Excel  
+- ✔️ Sistema de autenticación (JWT)  
+- ✔️ Logs y auditoría de cambios  
+- ✔️ Documentación con Swagger  
 
 ---
 
-## Configuración
+##  Tecnologías Utilizadas
 
-### Cadena de conexión a la base de datos
+### 🔹 Backend  
+- ASP.NET + C#  
 
-El archivo `appsettings.json` debe incluir la cadena de conexión a tu base de datos SQL Server:
+### 🔹 Frontend  
+- React + Vite  
 
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=TU_SERVIDOR;Database=TodoAppDb;Trusted_Connection=True;"
-  },
-  "Jwt": {
-    "Key": "TU_CLAVE_SECRETA_MUY_LARGA_Y_SEGURA",
-    "Issuer": "TodoAppAPI",
-    "Audience": "TodoAppClient"
-  }
-}
+### 🔹 Base de Datos  
+- SQL Server  
+- Supabase (Base de datos en la nube)
+
+### 🔹 Otros  
+- Notificaciones: SMTP  
+- Autenticación: JSON Web Tokens (JWT)  
+- Reportes: Excel (.xlsx)  
+- Despliegue Frontend: Vercel  
+- Despliegue Backend: Render  
+
+---
+
+## Arquitectura Utilizada
+
+### Arquitectura Cliente–Servidor  
+El frontend (cliente) realiza solicitudes HTTP al backend (servidor) para procesar y ejecutar acciones mediante las API.
+
+### Arquitectura MVC (Model–View–Controller)
+En el backend se emplea el patrón MVC:
+
+- **Models:** representan los datos y entidades  
+- **Views:** se encuentran en el frontend (basadas en componentes)  
+- **Controllers:** gestionan las solicitudes HTTP  
+- **DTOs:** encapsulan datos de entrada y salida  
+- **Services:** contienen la lógica de negocio, JWT y notificación por correo  
+- **API Services (frontend):** consumen las API expuestas  
+
+---
+
+## Patrones y Principios SOLID Aplicados
+
+### 🔹 Patrones Utilizados
+- **Singleton:** aplicado al contexto de acceso a la base de datos  
+- **Inyección de Dependencias:** usada en controladores de tareas y cuentas  
+- **Factory Method, Repository, Command:** no se implementaron por simplicidad, pero se recomiendan para futuras versiones
+
+### 🔹 Principios SOLID
+
+- **S – Single Responsibility:**  
+  Servicios separados para notificaciones y generación de tokens.
+
+- **I – Interface Segregation:**  
+  Interfaces independientes para token y correo.
+
+- **D – Dependency Inversion:**  
+  Los controladores dependen de interfaces en lugar de implementaciones concretas.
+
+---
+
+## Instalación
+
+### 🔹 1. Clonar el repositorio Backend
+
+
+https://github.com/DG97-prog/TODOAPI-Backend.git
+
+
+### 🔹 2. Abrir la solución en Visual Studio
+
+
+### 🔹 3. Compilar el proyecto  
+Esto instalará las dependencias requeridas.
+
+### 🔹 4. Ejecutar la API  
+Seleccionar un perfil de ejecución, por ejemplo:
+
+- `http`  
+- `TodoApp.http`
+
+### 🔹 5. Acceder a Swagger  
+Agregar `/swagger` a la URL del servidor.
+
+### 🔹 6. Base de Datos  
+Para probar debe:
+
+- Tener acceso a la base de datos en la nube  
+**o**
+- Restaurar la base en SQL Server  
+
+---
+
+## Flujo del Sistema
+
+### Administrador
+- Crear usuarios  
+- Actualizar usuarios  
+- Eliminar usuarios  
+- Crear sus propias tareas  
+
+### Supervisor
+- Crear tareas  
+- Asignar tareas  
+- Actualizar tareas  
+- Eliminar tareas  
+- Generar informes Excel:
+
+Incluyen:
+- Total de tareas por estado  
+- Tareas por usuario  
+- Fecha de creación  
+- Fecha de vencimiento  
+
+### Backend
+- Envía correo automático cuando se crea o asigna una tarea  
+
+---
+
+## 📁 Estructura del Proyecto (Backend)
+
+```plaintext
+TodoApp.API/
+│
+├── Controllers/
+│   ├── AccountController.cs
+│   ├── AuthController.cs
+│   └── TareasController.cs
+│
+├── data/
+│   └── ApplicationDbContext.cs
+│
+├── DTOs/
+│   ├── CreateTareaDto.cs
+│   ├── LoginDto.cs
+│   ├── RegisterDto.cs
+│   ├── UpdateTareaDto.cs
+│   └── UpdateUsuarioDto.cs
+│
+├── Interfaces/
+│   ├── IAuthService.cs
+│   └── IEmailService.cs
+│
+├── models/
+│   ├── Categoria.cs
+│   ├── Estado.cs
+│   ├── Tarea.cs
+│   └── Usuario.cs
+│
+├── Services/
+│   ├── AuthService.cs
+│   └── EmailService.cs
+│
+└── Properties/
